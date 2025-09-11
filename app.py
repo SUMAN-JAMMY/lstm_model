@@ -1,40 +1,38 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, HTTPException, Request
 import numpy as np
-import pickle
-from lstm_student_prediction import model  # import your trained model
+from tensorflow.keras.models import load_model
 
-app = Flask(__name__)
+app = FastAPI()
 
-# Load preprocessing objects if available
-try:
-    with open("scaler.pkl", "rb") as f:
-        scaler = pickle.load(f)
-    with open("encoder.pkl", "rb") as f:
-        encoder = pickle.load(f)
-except:
-    scaler, encoder = None, None
+# Load the trained model at startup
+MODEL_PATH = "models/lstm_model_prediction.h5"
+model = load_model(MODEL_PATH)
 
-@app.route("/", methods=["GET"])
+@app.get("/")
 def home():
-    return jsonify({"message": "Student Prediction API is running with Flask!"})
+    return {"message": "LSTM API running!"}
 
-@app.route("/predict", methods=["POST"])
-def predict():
+@app.post("/predict")
+async def predict(request: Request):
     try:
-        data = request.get_json()
-        features = np.array(data["features"]).reshape(1, -1)
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
 
-        if scaler:
-            features = scaler.transform(features)
+    if "data" not in payload:
+        raise HTTPException(status_code=400, detail="Missing 'data' key")
 
-        prediction = model.predict(features)
-        probability = float(prediction[0][0])
-        result = 1 if probability >= 0.5 else 0
+    arr = np.array(payload["data"])
 
-        return jsonify({"prediction": result, "probability": probability})
+    # Adjust shape for LSTM input: (batch, timesteps, features)
+    if arr.ndim == 1:
+        arr = arr.reshape((1, arr.shape[0], 1))
+    elif arr.ndim == 2:
+        arr = arr.reshape((1, arr.shape[0], arr.shape[1]))
+
+    try:
+        preds = model.predict(arr)
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
+    return {"predictions": preds.tolist()}
