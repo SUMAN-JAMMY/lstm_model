@@ -1,26 +1,26 @@
-from fastapi import FastAPI, HTTPException, Request
+from flask import Flask, request, jsonify
 import numpy as np
 from tensorflow.keras.models import load_model
 
-app = FastAPI()
+app = Flask(__name__)
 
-# Load the trained model at startup
+# Load the trained model
 MODEL_PATH = "models/lstm_model_prediction.h5"
 model = load_model(MODEL_PATH)
 
-@app.get("/")
+@app.route("/", methods=["GET"])
 def home():
-    return {"message": "LSTM API running!"}
+    return jsonify({"message": "LSTM Flask API running!"})
 
-@app.post("/predict")
-async def predict(request: Request):
+@app.route("/predict", methods=["POST"])
+def predict():
     try:
-        payload = await request.json()
+        payload = request.get_json(force=True)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
+        return jsonify({"error": "Invalid JSON body"}), 400
 
     if "data" not in payload:
-        raise HTTPException(status_code=400, detail="Missing 'data' key")
+        return jsonify({"error": "Missing 'data' key"}), 400
 
     arr = np.array(payload["data"])
 
@@ -33,6 +33,11 @@ async def predict(request: Request):
     try:
         preds = model.predict(arr)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
+        return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
 
-    return {"predictions": preds.tolist()}
+    return jsonify({"predictions": preds.tolist()})
+
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 5000))  # Render provides PORT env variable
+    app.run(host="0.0.0.0", port=port, debug=False)
