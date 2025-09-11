@@ -27,7 +27,8 @@ def create_sequences_for_next_step(df_student, sequence_length):
 
 def preprocess_data(file_path, sequence_length=SEQUENCE_LENGTH):
     print("📥 Loading dataset...")
-    df = pd.read_csv(file_path)
+    df = pd.read_csv('
+    /content/dataset/student-por.csv')
 
     if df.empty:
         raise ValueError("Dataset is empty!")
